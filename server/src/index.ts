@@ -9,14 +9,9 @@ gameServer.define(ROOM_NAMES.BATTLE, BattleRoom)
 gameServer.define(ROOM_NAMES.PRIVATE_ROOM, BattleRoom)
 gameServer.define(ROOM_NAMES.QUICK_MATCH, BattleRoom)
 
-// Health check endpoint
-gameServer.app.get('/health', (_req: any, res: any) => {
-  res.json({ status: 'ok' })
-})
-
 gameServer.listen(SERVER_PORT).then(() => {
   logger.info('Server', `Servidor escuchando en puerto ${SERVER_PORT}`)
   logger.info('Server', `Salas: ${Object.values(ROOM_NAMES).join(', ')}`)
-}).catch((err: any) => {
-  logger.error('Server', `Error al iniciar: ${err}`)
+}).catch((err: unknown) => {
+  logger.error('Server', `Error al iniciar: ${String(err)}`)
 })
