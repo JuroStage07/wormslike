@@ -1,0 +1,9 @@
+export const WORM_CONFIG = {
+  WIDTH: 40,
+  HEIGHT: 24,
+  START_X: 500,
+  START_Y: 260,
+  MOVE_SPEED: 4.5,
+  JUMP_IMPULSE: 7.5,
+  GROUND_CHECK_EPSILON: 0.15,
+} as const
