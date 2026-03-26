@@ -169,7 +169,11 @@ export class GameScene extends Phaser.Scene {
     const remaining = this.getRemainingTurnTime()
     this.hudManager.updateTimer(remaining)
 
-    if (remaining <= 0 && !this.currentProjectile && !this.nextTurnPending) {
+    // Only the active player advances the turn on timeout
+    const activePlayer = this.turnManager.getCurrentPlayer()
+    const isMyTurn = !this.isMultiplayer || activePlayer.id === this.localPlayerId
+
+    if (remaining <= 0 && !this.currentProjectile && !this.nextTurnPending && isMyTurn) {
       this.hudManager.showMessage('Tiempo agotado')
       this.scheduleNextTurn()
     }
@@ -573,6 +577,16 @@ export class GameScene extends Phaser.Scene {
       if (Phaser.Input.Keyboard.JustDown(this.jumpKey)) {
         activeWorm.jump()
       }
+
+      // Broadcast position every frame while moving
+      if (this.isMultiplayer && colyseusService.isConnected() && (isMovingLeft || isMovingRight)) {
+        const pos = activeWorm.getPositionPixels()
+        colyseusService.sendPlayerAction('move', {
+          x: pos.x,
+          y: pos.y,
+          playerId: this.localPlayerId
+        })
+      }
     } else {
       activeWorm.stopHorizontalMovement()
     }
@@ -679,6 +693,21 @@ export class GameScene extends Phaser.Scene {
     
     this.createProjectiles(activeWorm, currentWeapon, weaponData)
     this.lastShotAt = now
+
+    // Broadcast shoot to other players
+    if (this.isMultiplayer && colyseusService.isConnected()) {
+      const wormPosition = activeWorm.getPositionPixels()
+      const angle = this.weaponController.getAimAngleRad()
+      const muzzleDistance = 34
+      colyseusService.sendPlayerAction('shoot', {
+        x: wormPosition.x + Math.cos(angle) * muzzleDistance,
+        y: wormPosition.y + Math.sin(angle) * muzzleDistance,
+        angle,
+        weaponType: currentWeapon,
+        power: this.weaponController.getPower(),
+        playerId: this.localPlayerId
+      })
+    }
 
     logger.info('GameScene', `Disparo realizado con ${weaponData.name}`)
     this.hudManager.showMessage(`Disparo: ${weaponData.name}`)
@@ -1674,8 +1703,49 @@ export class GameScene extends Phaser.Scene {
   }
 
   private handleRemoteShoot(data: any): void {
-    // Crear proyectil desde jugador remoto
-    this.createSingleProjectile(data.x, data.y, data.angle, data.weaponType, data.weaponData)
+    const weaponData = WEAPON_CONFIG[data.weaponType as WeaponType] as any
+    if (!weaponData) return
+
+    // Special weapons
+    if (data.weaponType === WEAPON_TYPES.LASER) {
+      this.fireLaser(data.x, data.y, data.angle, weaponData)
+      return
+    }
+    if (data.weaponType === WEAPON_TYPES.FLAME_THROWER) {
+      this.fireFlamethrower(data.x, data.y, data.angle, weaponData)
+      return
+    }
+
+    const projectileBody = createProjectileBody(this.world, data.x, data.y, data.weaponType)
+    const velocity = (data.power ?? this.weaponController.getPower()) * weaponData.projectileSpeed
+    projectileBody.setLinearVelocity(
+      planck.Vec2(Math.cos(data.angle) * velocity, Math.sin(data.angle) * velocity)
+    )
+
+    const projectileGraphic = this.assetManager.createProjectileSprite(
+      data.weaponType, weaponData.projectileSize, weaponData.projectileColor
+    )
+    projectileGraphic.setPosition(data.x, data.y)
+    this.assetManager.createMuzzleFlash(data.x, data.y, data.angle)
+
+    const projectile: ProjectileBinding = {
+      body: projectileBody,
+      graphic: projectileGraphic,
+      weaponType: data.weaponType,
+      createdAt: this.time.now,
+      bounceCount: 0,
+      trailPoints: [],
+      lastTrailTime: 0,
+    }
+
+    if (weaponData.hasTimer && weaponData.fuseTime) {
+      projectile.fuseTimer = this.time.now + weaponData.fuseTime
+    }
+
+    this.activeProjectiles.push(projectile)
+    if (!this.currentProjectile) {
+      this.currentProjectile = projectile
+    }
   }
 
   private handleRemoteTerrainDestroy(data: any): void {
@@ -1686,9 +1756,22 @@ export class GameScene extends Phaser.Scene {
 
   private handleRemoteTurnEnd(data: any): void {
     logger.info('GameScene', `Fin de turno remoto de ${data.playerId}`)
-    // Solo procesar si no es nuestro turno
+    // Only process if it's not our own turn_end echo
     if (data.playerId !== this.localPlayerId) {
-      this.nextTurn()
+      // Sync the turn to the specific next player if provided
+      if (data.nextPlayerId) {
+        this.turnManager.setCurrentPlayer(data.nextPlayerId)
+        this.syncActiveWorm()
+        this.updateTurnUI()
+        const nextWorm = this.worms.get(data.nextPlayerId)
+        if (nextWorm) {
+          this.weaponController.resetForNewTurn(nextWorm.getDirection())
+        }
+        this.startTurnTimer()
+        this.hudManager.showMessage(`Turno de ${this.turnManager.getCurrentPlayer().name}`)
+      } else {
+        this.scheduleNextTurn(0)
+      }
     }
   }
 
