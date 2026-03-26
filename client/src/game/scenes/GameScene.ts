@@ -423,7 +423,7 @@ export class GameScene extends Phaser.Scene {
       const worm = new Worm(this, this.world, {
         x: position.x,
         y: position.y,
-        color: player.color || player.wormColor || 0xff4444,
+        color: player.color || 0xff4444,
         label: player.name.toUpperCase(),
       })
 

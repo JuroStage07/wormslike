@@ -1,20 +1,5 @@
 import { logger } from '../../utils/logger'
-
-export interface PlayerData {
-  id: string
-  name: string
-  isReady: boolean
-  isHost: boolean
-  isConnected: boolean
-  color: number
-  avatar?: string
-  stats?: {
-    wins: number
-    losses: number
-    totalDamage: number
-    accuracy: number
-  }
-}
+import type { PlayerData } from '../types/player'
 
 export class PlayerManager {
   private players: Map<string, PlayerData> = new Map()
@@ -51,15 +36,23 @@ export class PlayerManager {
   }
 
   public addPlayer(playerData: PlayerData): void {
-    this.players.set(playerData.id, playerData)
+    // Ensure required properties have defaults
+    const fullPlayerData: PlayerData = {
+      ...playerData,
+      isReady: playerData.isReady ?? false,
+      isHost: playerData.isHost ?? false,
+      isConnected: playerData.isConnected ?? true,
+    }
+    
+    this.players.set(fullPlayerData.id, fullPlayerData)
     
     // Si el jugador es marcado como host, actualizar hostPlayerId
-    if (playerData.isHost) {
-      this.hostPlayerId = playerData.id
-      logger.info('PlayerManager', `Host establecido: ${playerData.name} (${playerData.id})`)
+    if (fullPlayerData.isHost) {
+      this.hostPlayerId = fullPlayerData.id
+      logger.info('PlayerManager', `Host establecido: ${fullPlayerData.name} (${fullPlayerData.id})`)
     }
 
-    logger.info('PlayerManager', `Jugador añadido: ${playerData.name} (${playerData.id}) - Host: ${playerData.isHost}`)
+    logger.info('PlayerManager', `Jugador añadido: ${fullPlayerData.name} (${fullPlayerData.id}) - Host: ${fullPlayerData.isHost}`)
   }
 
   public removePlayer(playerId: string): void {
@@ -95,11 +88,11 @@ export class PlayerManager {
   }
 
   public getConnectedPlayers(): PlayerData[] {
-    return this.getAllPlayers().filter(p => p.isConnected)
+    return this.getAllPlayers().filter(p => p.isConnected ?? true)
   }
 
   public getReadyPlayers(): PlayerData[] {
-    return this.getAllPlayers().filter(p => p.isReady)
+    return this.getAllPlayers().filter(p => p.isReady ?? false)
   }
 
   public getHost(): PlayerData | undefined {
@@ -112,14 +105,14 @@ export class PlayerManager {
 
   public isLocalPlayerReady(): boolean {
     const localPlayer = this.players.get(this.localPlayerId)
-    return localPlayer?.isReady || false
+    return localPlayer?.isReady ?? false
   }
 
   public canStartGame(): boolean {
     const connectedPlayers = this.getConnectedPlayers()
     // Permitir iniciar con 1 jugador (modo single player con bots)
     return connectedPlayers.length >= 1 && 
-           connectedPlayers.every(p => p.isReady || p.isHost)
+           connectedPlayers.every(p => (p.isReady ?? false) || (p.isHost ?? false))
   }
 
   public addBot(): void {

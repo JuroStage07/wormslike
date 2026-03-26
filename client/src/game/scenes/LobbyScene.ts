@@ -1,7 +1,8 @@
 import Phaser from 'phaser'
 import { SCENE_KEYS } from '../../constants/game'
 import { colyseusService } from '../utils/ColyseusService'
-import { PlayerManager, type PlayerData } from '../utils/PlayerManager'
+import { PlayerManager } from '../utils/PlayerManager'
+import type { PlayerData } from '../types/player'
 import { logger } from '../../utils/logger'
 import { FIXED_MAPS, MAP_IDS, type FixedMapId } from '../constants/fixedMaps'
 
