@@ -355,7 +355,7 @@ export class MainMenuScene extends Phaser.Scene {
     currentY += 80
 
     this.joinRoomButton = createEnhancedButton('🚪 Unirse a Sala', currentY, 0xf59e0b, () => {
-      this.scene.start(SCENE_KEYS.LOBBY, { mode: 'join' })
+      this.showJoinOptions()
     })
     currentY += 80
 
@@ -378,6 +378,100 @@ export class MainMenuScene extends Phaser.Scene {
         ease: 'Back.easeOut'
       })
     })
+  }
+
+  private showJoinOptions(): void {
+    const cx = this.scale.width / 2
+    const cy = this.scale.height / 2
+
+    // Overlay
+    const overlay = this.add.rectangle(cx, cy, this.scale.width, this.scale.height, 0x000000, 0.7)
+      .setDepth(500).setInteractive()
+
+    const panel = this.add.graphics().setDepth(501)
+    panel.fillStyle(0x111122, 0.98)
+    panel.lineStyle(3, 0xf59e0b, 1)
+    panel.fillRoundedRect(cx - 260, cy - 200, 520, 400, 16)
+    panel.strokeRoundedRect(cx - 260, cy - 200, 520, 400, 16)
+
+    const title = this.add.text(cx, cy - 160, '🚪 Unirse a Sala', {
+      fontFamily: 'Arial Black', fontSize: '28px', color: '#ffffff'
+    }).setOrigin(0.5).setDepth(502)
+
+    // Option 1: Browse public rooms
+    const browseBtn = this.add.text(cx, cy - 60, '🔍  Buscar Salas Públicas', {
+      fontFamily: 'Arial Bold', fontSize: '20px', color: '#ffffff',
+      backgroundColor: '#1a6a3a', padding: { x: 30, y: 14 }
+    }).setOrigin(0.5).setDepth(502).setInteractive({ useHandCursor: true })
+
+    browseBtn.on('pointerover', () => browseBtn.setStyle({ backgroundColor: '#2a8a4a' }))
+    browseBtn.on('pointerout', () => browseBtn.setStyle({ backgroundColor: '#1a6a3a' }))
+    browseBtn.on('pointerdown', () => {
+      this.closeJoinPanel([overlay, panel, title, browseBtn, orText, codeLabel, codeInput, joinBtn, cancelBtn])
+      this.scene.start(SCENE_KEYS.LOBBY, { mode: 'quick' })
+    })
+
+    const orText = this.add.text(cx, cy + 10, '— o —', {
+      fontFamily: 'Arial', fontSize: '16px', color: '#888888'
+    }).setOrigin(0.5).setDepth(502)
+
+    // Option 2: Enter room code
+    const codeLabel = this.add.text(cx, cy + 50, 'Ingresar código de sala (4 dígitos):', {
+      fontFamily: 'Arial', fontSize: '15px', color: '#cccccc'
+    }).setOrigin(0.5).setDepth(502)
+
+    // DOM input for code
+    const inputEl = document.createElement('input')
+    inputEl.type = 'text'
+    inputEl.maxLength = 4
+    inputEl.placeholder = '0000'
+    inputEl.pattern = '[0-9]*'
+    inputEl.inputMode = 'numeric'
+    inputEl.style.cssText = `
+      width: 120px; height: 44px; font-size: 28px; text-align: center;
+      border: 2px solid #f59e0b; border-radius: 8px;
+      background: #1a1a2e; color: #ffffff; outline: none; letter-spacing: 8px;
+    `
+    inputEl.addEventListener('input', () => {
+      inputEl.value = inputEl.value.replace(/\D/g, '').slice(0, 4)
+    })
+    const codeInput = this.add.dom(cx, cy + 100, inputEl).setDepth(502)
+
+    const joinBtn = this.add.text(cx, cy + 155, '✅  Unirse', {
+      fontFamily: 'Arial Bold', fontSize: '20px', color: '#ffffff',
+      backgroundColor: '#f59e0b', padding: { x: 30, y: 12 }
+    }).setOrigin(0.5).setDepth(502).setInteractive({ useHandCursor: true })
+
+    joinBtn.on('pointerover', () => joinBtn.setStyle({ backgroundColor: '#fbbf24' }))
+    joinBtn.on('pointerout', () => joinBtn.setStyle({ backgroundColor: '#f59e0b' }))
+    joinBtn.on('pointerdown', () => {
+      const code = inputEl.value.trim()
+      if (code.length === 4) {
+        this.closeJoinPanel([overlay, panel, title, browseBtn, orText, codeLabel, codeInput, joinBtn, cancelBtn])
+        this.scene.start(SCENE_KEYS.LOBBY, { mode: 'join', roomCode: code })
+      } else {
+        inputEl.style.borderColor = '#ef4444'
+        this.time.delayedCall(1000, () => { inputEl.style.borderColor = '#f59e0b' })
+      }
+    })
+
+    inputEl.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') joinBtn.emit('pointerdown')
+    })
+
+    const cancelBtn = this.add.text(cx, cy + 160, '✕ Cancelar', {
+      fontFamily: 'Arial', fontSize: '15px', color: '#888888'
+    }).setOrigin(0.5).setDepth(502).setInteractive({ useHandCursor: true })
+    cancelBtn.setY(cy + 200)
+    cancelBtn.on('pointerover', () => cancelBtn.setStyle({ color: '#ffffff' }))
+    cancelBtn.on('pointerout', () => cancelBtn.setStyle({ color: '#888888' }))
+    cancelBtn.on('pointerdown', () => {
+      this.closeJoinPanel([overlay, panel, title, browseBtn, orText, codeLabel, codeInput, joinBtn, cancelBtn])
+    })
+  }
+
+  private closeJoinPanel(objects: Phaser.GameObjects.GameObject[]): void {
+    objects.forEach(o => o.destroy())
   }
 
   private createFooter(): void {

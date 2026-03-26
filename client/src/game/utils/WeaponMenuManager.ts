@@ -1,18 +1,24 @@
 import Phaser from 'phaser'
-import { WEAPON_MENU_CONFIG, WEAPON_MENU_ASSETS } from '../constants/weaponMenu'
-import { WEAPON_TYPES } from '../constants/weapons'
+import { WEAPON_TYPES, WEAPON_CONFIG } from '../constants/weapons'
 import type { WeaponType } from '../types/weapons'
 import { logger } from '../../utils/logger'
+
+const WEAPON_EMOJIS: Record<string, string> = {
+  bazooka:       '🚀',
+  grenade:       '💣',
+  missile:       '🎯',
+  cluster_bomb:  '💥',
+  pistol:        '🔫',
+  laser:         '⚡',
+  flame_thrower: '🔥',
+}
 
 export class WeaponMenuManager {
   private scene: Phaser.Scene
   private isVisible = false
   private container!: Phaser.GameObjects.Container
-  private background!: Phaser.GameObjects.Rectangle
-  private slots: Phaser.GameObjects.Container[] = []
   private selectedWeapon: WeaponType = WEAPON_TYPES.BAZOOKA
   private onWeaponSelect?: (weapon: WeaponType) => void
-  private keyboardHandlers: Array<() => void> = []
 
   constructor(scene: Phaser.Scene) {
     this.scene = scene
@@ -20,262 +26,153 @@ export class WeaponMenuManager {
 
   public create(onWeaponSelect: (weapon: WeaponType) => void): void {
     this.onWeaponSelect = onWeaponSelect
-    
-    const centerX = this.scene.scale.width / 2
-    const centerY = this.scene.scale.height / 2
 
-    // Contenedor principal
-    this.container = this.scene.add.container(centerX, centerY)
+    const cx = 800  // fixed world center X (1600/2)
+    const cy = 400  // fixed world center Y (800/2)
+
+    this.container = this.scene.add.container(cx, cy)
     this.container.setDepth(1000)
     this.container.setVisible(false)
 
-    // Fondo del menú
-    this.background = this.scene.add.rectangle(
-      0, 0,
-      WEAPON_MENU_CONFIG.PANEL_WIDTH,
-      WEAPON_MENU_CONFIG.PANEL_HEIGHT,
-      WEAPON_MENU_CONFIG.BACKGROUND_COLOR,
-      0.95
-    )
-    this.background.setStrokeStyle(3, WEAPON_MENU_CONFIG.BORDER_COLOR)
+    const weapons = Object.values(WEAPON_TYPES)
+    const cols = 4
+    const slotW = 130
+    const slotH = 110
+    const gap = 12
+    const rows = Math.ceil(weapons.length / cols)
+    const panelW = cols * (slotW + gap) + gap
+    const panelH = rows * (slotH + gap) + gap + 80
 
-    // Título
-    const title = this.scene.add.text(0, -180, 'SELECCIONAR ARMA', {
-      fontFamily: 'Arial Bold',
-      fontSize: '24px',
-      color: '#ffffff'
+    // Panel background
+    const bg = this.scene.add.graphics()
+    bg.fillStyle(0x111122, 0.96)
+    bg.lineStyle(3, 0x4a90e2, 1)
+    bg.fillRoundedRect(-panelW / 2, -panelH / 2, panelW, panelH, 16)
+    bg.strokeRoundedRect(-panelW / 2, -panelH / 2, panelW, panelH, 16)
+    this.container.add(bg)
+
+    // Title
+    const title = this.scene.add.text(0, -panelH / 2 + 28, '⚔️  SELECCIONAR ARMA  ⚔️', {
+      fontFamily: 'Arial Black',
+      fontSize: '22px',
+      color: '#ffffff',
     }).setOrigin(0.5)
+    this.container.add(title)
 
-    // Instrucciones
-    const instructions = this.scene.add.text(0, -150, 'M: Cerrar | Click: Seleccionar | 1-8: Teclas rápidas', {
+    const hint = this.scene.add.text(0, -panelH / 2 + 54, 'Click para seleccionar · M para cerrar', {
       fontFamily: 'Arial',
-      fontSize: '16px',
-      color: '#cccccc'
+      fontSize: '13px',
+      color: '#888888',
     }).setOrigin(0.5)
+    this.container.add(hint)
 
-    this.container.add([this.background, title, instructions])
+    // Weapon slots
+    const startX = -(cols * (slotW + gap) - gap) / 2 + slotW / 2
+    const startY = -panelH / 2 + 80 + slotH / 2
 
-    this.createWeaponGrid()
-    this.setupKeyboardControls()
-  }
-
-  private createWeaponGrid(): void {
-    const startX = -250
-    const startY = -100
-    
-    // Crear etiquetas F1, F2, etc.
-    const f1Label = this.scene.add.text(startX - 40, startY + 20, 'F1', {
-      fontFamily: 'Arial Bold',
-      fontSize: '18px',
-      color: '#ffdd44'
-    }).setOrigin(0.5)
-
-    const f2Label = this.scene.add.text(startX - 40, startY + 120, 'F2', {
-      fontFamily: 'Arial Bold',
-      fontSize: '18px',
-      color: '#ffdd44'
-    }).setOrigin(0.5)
-
-    this.container.add([f1Label, f2Label])
-
-    // Crear slots F1 (armas principales)
-    WEAPON_MENU_ASSETS.F1.forEach((weapon, index) => {
-      const x = startX + (index * (WEAPON_MENU_CONFIG.SLOT_SIZE + WEAPON_MENU_CONFIG.SLOT_PADDING))
-      const y = startY
-      
-      const slot = this.createWeaponSlot(weapon, x, y, index + 1)
-      this.slots.push(slot)
-      this.container.add(slot)
-    })
-
-    // Crear slots F2 (armas secundarias)
-    WEAPON_MENU_ASSETS.F2.forEach((weapon, index) => {
-      const x = startX + (index * (WEAPON_MENU_CONFIG.SLOT_SIZE + WEAPON_MENU_CONFIG.SLOT_PADDING))
-      const y = startY + 100
-      
-      const slot = this.createWeaponSlot(weapon, x, y, index + 1)
-      this.slots.push(slot)
+    weapons.forEach((weaponType, i) => {
+      const col = i % cols
+      const row = Math.floor(i / cols)
+      const x = startX + col * (slotW + gap)
+      const y = startY + row * (slotH + gap)
+      const slot = this.createSlot(weaponType, x, y, slotW, slotH, i + 1)
       this.container.add(slot)
     })
   }
 
-  private createWeaponSlot(
-    weaponData: { key: string; name: string; color: number },
-    x: number,
-    y: number,
-    keyNumber: number
+  private createSlot(
+    weaponType: WeaponType,
+    x: number, y: number,
+    w: number, h: number,
+    keyNum: number
   ): Phaser.GameObjects.Container {
-    const slotContainer = this.scene.add.container(x, y)
+    const slot = this.scene.add.container(x, y)
+    const cfg = WEAPON_CONFIG[weaponType] as any
+    const emoji = WEAPON_EMOJIS[weaponType] ?? '❓'
+    const isSelected = this.selectedWeapon === weaponType
 
-    // Fondo del slot
-    const slotBg = this.scene.add.rectangle(
-      0, 0,
-      WEAPON_MENU_CONFIG.SLOT_SIZE,
-      WEAPON_MENU_CONFIG.SLOT_SIZE,
-      0x333333,
-      0.8
-    )
-    slotBg.setStrokeStyle(2, 0x666666)
-
-    // Icono del arma (círculo coloreado por ahora)
-    let weaponIcon: Phaser.GameObjects.GameObject
-    
-    if (weaponData.key === 'empty') {
-      weaponIcon = this.scene.add.circle(0, 0, 20, 0x555555, 0.3)
-    } else {
-      weaponIcon = this.scene.add.circle(0, 0, 25, weaponData.color, 0.8)
-      
-      // Agregar símbolo según el arma
-      let symbol = ''
-      switch (weaponData.key) {
-        case 'bazooka': symbol = '🚀'; break
-        case 'grenade': symbol = '💣'; break
-        case 'missile': symbol = '🎯'; break
-        case 'cluster_bomb': symbol = '💥'; break
-        case 'pistol': symbol = '🔫'; break
-        case 'laser': symbol = '⚡'; break
-        case 'flame_thrower': symbol = '🔥'; break
-      }
-      
-      const symbolText = this.scene.add.text(0, 0, symbol, {
-        fontSize: '20px'
-      }).setOrigin(0.5)
-      
-      slotContainer.add(symbolText)
+    const bg = this.scene.add.graphics()
+    const drawBg = (hover: boolean, selected: boolean) => {
+      bg.clear()
+      const fill = selected ? 0x1a4a2a : hover ? 0x2a3a5a : 0x1a1a2e
+      const border = selected ? 0x4ade80 : hover ? 0x7ab0f2 : 0x334466
+      bg.fillStyle(fill, 1)
+      bg.lineStyle(2, border, 1)
+      bg.fillRoundedRect(-w / 2, -h / 2, w, h, 10)
+      bg.strokeRoundedRect(-w / 2, -h / 2, w, h, 10)
     }
+    drawBg(false, isSelected)
 
-    // Número de tecla
-    const keyText = this.scene.add.text(-30, -30, keyNumber.toString(), {
+    // Key number badge
+    const badge = this.scene.add.text(-w / 2 + 8, -h / 2 + 8, keyNum.toString(), {
       fontFamily: 'Arial Bold',
-      fontSize: '14px',
-      color: '#ffdd44'
+      fontSize: '13px',
+      color: '#ffdd44',
+    }).setOrigin(0, 0)
+
+    // Big emoji icon
+    const icon = this.scene.add.text(0, -10, emoji, {
+      fontSize: '38px',
     }).setOrigin(0.5)
 
-    // Nombre del arma
-    const nameText = this.scene.add.text(0, 45, weaponData.name, {
+    // Weapon name
+    const name = this.scene.add.text(0, h / 2 - 22, cfg.name, {
+      fontFamily: 'Arial Bold',
+      fontSize: '12px',
+      color: '#ffffff',
+    }).setOrigin(0.5)
+
+    // Ammo indicator
+    const ammoStr = cfg.ammo === -1 ? '∞' : `×${cfg.ammo}`
+    const ammo = this.scene.add.text(w / 2 - 8, -h / 2 + 8, ammoStr, {
       fontFamily: 'Arial',
       fontSize: '12px',
-      color: '#ffffff'
-    }).setOrigin(0.5)
+      color: '#aaaaaa',
+    }).setOrigin(1, 0)
 
-    slotContainer.add([slotBg, weaponIcon, keyText, nameText])
+    slot.add([bg, badge, icon, name, ammo])
+    slot.setSize(w, h)
+    slot.setInteractive({ useHandCursor: true })
 
-    // Hacer interactivo si no está vacío
-    if (weaponData.key !== 'empty') {
-      slotContainer.setSize(WEAPON_MENU_CONFIG.SLOT_SIZE, WEAPON_MENU_CONFIG.SLOT_SIZE)
-      slotContainer.setInteractive({ useHandCursor: true })
-
-      slotContainer.on('pointerover', () => {
-        slotBg.fillColor = WEAPON_MENU_CONFIG.HOVER_COLOR
-      })
-
-      slotContainer.on('pointerout', () => {
-        const isSelected = this.selectedWeapon === weaponData.key
-        slotBg.fillColor = isSelected ? WEAPON_MENU_CONFIG.SELECTED_COLOR : 0x333333
-      })
-
-      slotContainer.on('pointerdown', () => {
-        this.selectWeapon(weaponData.key as WeaponType)
-      })
-
-      // Marcar como seleccionado si es el arma actual
-      if (this.selectedWeapon === weaponData.key) {
-        slotBg.fillColor = WEAPON_MENU_CONFIG.SELECTED_COLOR
-      }
-    }
-
-    return slotContainer
-  }
-
-  private setupKeyboardControls(): void {
-    // Teclas numéricas para selección rápida (solo cuando el menú está visible)
-    for (let i = 1; i <= 8; i++) {
-      const handler = () => {
-        if (this.isVisible) {
-          this.selectWeaponByNumber(i)
-        }
-      }
-      
-      this.scene.input.keyboard?.on(`keydown-DIGIT${i}`, handler)
-      this.keyboardHandlers.push(() => {
-        this.scene.input.keyboard?.off(`keydown-DIGIT${i}`, handler)
-      })
-    }
-  }
-
-  private selectWeaponByNumber(number: number): void {
-    const weaponKeys = Object.values(WEAPON_TYPES)
-    if (number <= weaponKeys.length) {
-      const weaponType = weaponKeys[number - 1]
-      this.selectWeapon(weaponType)
-    }
-  }
-
-  private selectWeapon(weaponType: WeaponType): void {
-    this.selectedWeapon = weaponType
-    this.updateSelection()
-    
-    if (this.onWeaponSelect) {
-      this.onWeaponSelect(weaponType)
-    }
-    
-    this.hide()
-  }
-
-  private updateSelection(): void {
-    this.slots.forEach((slot, index) => {
-      // El slotBg es el primer elemento del container del slot
-      const slotBg = slot.list[0] as Phaser.GameObjects.Rectangle
-      const weaponData = index < 6 ? WEAPON_MENU_ASSETS.F1[index] : WEAPON_MENU_ASSETS.F2[index - 6]
-      
-      if (weaponData && weaponData.key === this.selectedWeapon) {
-        slotBg.fillColor = WEAPON_MENU_CONFIG.SELECTED_COLOR
-      } else {
-        slotBg.fillColor = 0x333333
-      }
+    slot.on('pointerover', () => drawBg(true, this.selectedWeapon === weaponType))
+    slot.on('pointerout', () => drawBg(false, this.selectedWeapon === weaponType))
+    slot.on('pointerdown', () => {
+      this.selectedWeapon = weaponType
+      // Redraw all slots
+      this.container.destroy()
+      this.create(this.onWeaponSelect!)
+      if (this.onWeaponSelect) this.onWeaponSelect(weaponType)
+      this.hide()
+      logger.info('WeaponMenuManager', `Arma seleccionada: ${weaponType}`)
     })
+
+    return slot
   }
 
   public show(): void {
-    logger.info('WeaponMenuManager', 'Mostrando menú de armas')
     this.isVisible = true
     this.container.setVisible(true)
-    this.updateSelection()
-    
-    // Animación de entrada
-    this.container.setScale(0.8)
+    this.container.setScale(0.85)
     this.container.setAlpha(0)
-    
     this.scene.tweens.add({
       targets: this.container,
       scale: 1,
       alpha: 1,
-      duration: 200,
-      ease: 'Back.easeOut'
+      duration: 180,
+      ease: 'Back.easeOut',
     })
   }
 
   public hide(): void {
     this.isVisible = false
-    
     this.scene.tweens.add({
       targets: this.container,
-      scale: 0.8,
+      scale: 0.85,
       alpha: 0,
-      duration: 150,
+      duration: 130,
       ease: 'Power2',
-      onComplete: () => {
-        this.container.setVisible(false)
-      }
+      onComplete: () => this.container.setVisible(false),
     })
-  }
-
-  public toggle(): void {
-    if (this.isVisible) {
-      this.hide()
-    } else {
-      this.show()
-    }
   }
 
   public isMenuVisible(): boolean {
@@ -283,10 +180,6 @@ export class WeaponMenuManager {
   }
 
   public destroy(): void {
-    // Limpiar event listeners
-    this.keyboardHandlers.forEach(cleanup => cleanup())
-    this.keyboardHandlers = []
-    
     this.container.destroy()
   }
 }

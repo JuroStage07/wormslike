@@ -42,7 +42,7 @@ export class BattleRoom extends Room {
   }
 
   private generateRoomCode(): string {
-    return Math.random().toString(36).substring(2, 8).toUpperCase()
+    return Math.floor(1000 + Math.random() * 9000).toString()
   }
 
   private setupMessageHandlers(): void {

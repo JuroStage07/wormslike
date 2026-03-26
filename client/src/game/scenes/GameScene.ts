@@ -1489,6 +1489,8 @@ export class GameScene extends Phaser.Scene {
 
   private scheduleNextTurn(delayMs: number = 300): void {
     if (this.nextTurnPending || this.gameOver) return
+    // In multiplayer, only the active player drives turn changes
+    if (this.isMultiplayer && this.turnManager.getCurrentPlayer().id !== this.localPlayerId) return
     this.nextTurnPending = true
     this.time.delayedCall(delayMs, () => {
       this.nextTurnPending = false
@@ -1756,22 +1758,18 @@ export class GameScene extends Phaser.Scene {
 
   private handleRemoteTurnEnd(data: any): void {
     logger.info('GameScene', `Fin de turno remoto de ${data.playerId}`)
-    // Only process if it's not our own turn_end echo
-    if (data.playerId !== this.localPlayerId) {
-      // Sync the turn to the specific next player if provided
-      if (data.nextPlayerId) {
-        this.turnManager.setCurrentPlayer(data.nextPlayerId)
-        this.syncActiveWorm()
-        this.updateTurnUI()
-        const nextWorm = this.worms.get(data.nextPlayerId)
-        if (nextWorm) {
-          this.weaponController.resetForNewTurn(nextWorm.getDirection())
-        }
-        this.startTurnTimer()
-        this.hudManager.showMessage(`Turno de ${this.turnManager.getCurrentPlayer().name}`)
-      } else {
-        this.scheduleNextTurn(0)
-      }
+    if (data.playerId === this.localPlayerId) return // ignore our own echo
+
+    this.nextTurnPending = false
+
+    if (data.nextPlayerId) {
+      this.turnManager.setCurrentPlayer(data.nextPlayerId)
+      this.syncActiveWorm()
+      this.updateTurnUI()
+      const nextWorm = this.worms.get(data.nextPlayerId)
+      if (nextWorm) this.weaponController.resetForNewTurn(nextWorm.getDirection())
+      this.startTurnTimer()
+      this.hudManager.showMessage(`Turno de ${this.turnManager.getCurrentPlayer().name}`)
     }
   }
 

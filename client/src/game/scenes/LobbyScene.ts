@@ -120,11 +120,12 @@ export class LobbyScene extends Phaser.Scene {
   }
 
   private async joinPrivateRoom(): Promise<void> {
-    const roomCode = prompt('Ingresa el código de la sala:')
+    const roomCode = this.roomCode || prompt('Ingresa el código de la sala (4 dígitos):')
     if (!roomCode) {
       this.scene.start(SCENE_KEYS.MAIN_MENU)
       return
     }
+    this.roomCode = roomCode
     
     try {
       // Intentar unirse a sala real
@@ -705,7 +706,7 @@ export class LobbyScene extends Phaser.Scene {
   }
 
   private generateRoomCode(): string {
-    return Math.random().toString(36).substring(2, 8).toUpperCase()
+    return Math.floor(1000 + Math.random() * 9000).toString()
   }
 
   private setupOfflineMode(): void {
