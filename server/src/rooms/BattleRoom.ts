@@ -25,14 +25,12 @@ export class BattleRoom extends Room {
 
   onCreate(options: RoomOptions): void {
     this.isPrivate = options.isPrivate || false
-    this.roomCode = options.roomCode || this.generateRoomCode()
+    // Always generate a 4-digit numeric code
+    this.roomCode = this.generateRoomCode()
+    // Force roomId to be the 4-digit code so clients can join by it
+    this.roomId = this.roomCode
     
-    // Si es sala privada, usar el código personalizado como roomId
-    if (this.isPrivate && options.roomCode) {
-      this.roomId = options.roomCode
-    }
-    
-    logger.info('BattleRoom', `Room creada: ${this.roomId} (Código: ${this.roomCode}, Privada: ${this.isPrivate})`)
+    logger.info('BattleRoom', `Room creada: ${this.roomId} (Privada: ${this.isPrivate})`)
 
     // Configurar mensajes
     this.setupMessageHandlers()
@@ -180,7 +178,7 @@ export class BattleRoom extends Room {
 
     // Enviar información de la sala al cliente
     client.send('room_info', {
-      roomCode: this.roomCode,
+      roomCode: this.roomId,  // roomId IS the 4-digit code
       isPrivate: this.isPrivate,
       isHost
     })
