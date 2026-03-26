@@ -1,6 +1,6 @@
 import Phaser from 'phaser'
 import planck from 'planck-js'
-import { pixelsToMeters, metersToPixels } from './physics'
+import { pixelsToMeters } from './physics'
 
 export interface TerrainChunk {
   x: number

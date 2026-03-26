@@ -15,14 +15,6 @@ interface ChatMessage {
   timestamp: number
 }
 
-interface PlayerState {
-  id: string
-  name: string
-  isReady: boolean
-  isHost: boolean
-  isConnected: boolean
-}
-
 class ColyseusService {
   private client: Client
   private room: Room | null = null
@@ -105,11 +97,6 @@ class ColyseusService {
     if (!this.room) return
 
     // Eventos de conexión - usar la API correcta de Colyseus
-    this.room.onJoin(() => {
-      logger.info('ColyseusService', 'Jugador se unió a la sala')
-      this.reconnectAttempts = 0
-    })
-
     this.room.onLeave((code: number) => {
       logger.info('ColyseusService', `Jugador salió de la sala (código: ${code})`)
       

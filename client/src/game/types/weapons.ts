@@ -3,7 +3,6 @@ import type { WEAPON_TYPES } from '../constants/weapons'
 export type WeaponType = typeof WEAPON_TYPES[keyof typeof WEAPON_TYPES]
 
 export interface WeaponData {
-  type: WeaponType
   name: string
   projectileSpeed: number
   damage: number
@@ -24,6 +23,7 @@ export interface WeaponData {
   hasTrail?: boolean
   trailColor?: number
   hasTimer?: boolean
+  showCountdown?: boolean
   isGuided?: boolean
   isInstant?: boolean
   penetrates?: boolean
@@ -38,17 +38,4 @@ export interface WeaponData {
 export interface WeaponState {
   currentWeapon: WeaponType
   ammoCount: Map<WeaponType, number>
-}
-
-export interface ProjectileBinding {
-  body: planck.Body
-  graphic: Phaser.GameObjects.GameObject
-  weaponType: WeaponType
-  createdAt: number
-  bounceCount?: number
-  targetX?: number
-  targetY?: number
-  fuseTimer?: number
-  trailPoints?: Array<{x: number, y: number}>
-  lastTrailTime?: number
 }
