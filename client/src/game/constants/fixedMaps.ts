@@ -160,7 +160,8 @@ export function resolveSpawnPoints(
   return mapData.spawnXFracs.map(xFrac => {
     const x = Math.round(xFrac * width)
     const clampedX = Math.max(0, Math.min(width - 1, x))
-    const y = heightMap[clampedX] - 30
+    // Spawn 60px above terrain surface so worm lands on top
+    const y = heightMap[clampedX] - 60
     return { x, y }
   })
 }

@@ -48,7 +48,8 @@ export class GameScene extends Phaser.Scene {
   private hudManager!: HudManager
   private assetManager!: AssetManager
   private weaponMenuManager!: WeaponMenuManager
-  private wormHealthTexts = new Map<string, Phaser.GameObjects.Text>() // HP sobre worms
+  private wormHealthTexts = new Map<string, Phaser.GameObjects.Text>()
+  private wormNameTexts = new Map<string, Phaser.GameObjects.Text>()
   private turnEndsAt = 0
   private gameOver = false
   private nextTurnPending = false
@@ -498,24 +499,30 @@ export class GameScene extends Phaser.Scene {
   }
 
   private createWormHealthTexts(): void {
+    const players = this.gameData?.players || []
     this.worms.forEach((worm, playerId) => {
       const position = worm.getPositionPixels()
+      const player = players.find((p: any) => p.id === playerId)
+      const playerName = player?.name || playerId
+
+      // Name label above worm
+      const nameText = this.add.text(position.x, position.y - 68, playerName, {
+        fontFamily: 'Arial Bold',
+        fontSize: '14px',
+        color: '#ffdd44',
+        stroke: '#000000',
+        strokeThickness: 3,
+      }).setOrigin(0.5).setDepth(101)
+      this.wormNameTexts.set(playerId, nameText)
+
+      // HP number
       const healthText = this.add.text(position.x, position.y - 50, '100', {
         fontFamily: 'Arial Bold',
         fontSize: '18px',
         color: '#ffffff',
         stroke: '#000000',
         strokeThickness: 3,
-        shadow: { 
-          offsetX: 2, 
-          offsetY: 2, 
-          color: '#000000', 
-          blur: 4, 
-          fill: true 
-        }
-      }).setOrigin(0.5)
-      
-      healthText.setDepth(100) // Asegurar que esté por encima de todo
+      }).setOrigin(0.5).setDepth(100)
       this.wormHealthTexts.set(playerId, healthText)
     })
   }
@@ -1578,24 +1585,21 @@ export class GameScene extends Phaser.Scene {
     })
   }
 
+  private remoteAimLines = new Map<string, Phaser.GameObjects.Graphics>()
+  private lastAimBroadcast = 0
+
   private updateAimLine(): void {
     this.aimLine.clear()
 
-    if (this.currentProjectile) {
-      return
-    }
+    if (this.currentProjectile) return
 
     const currentPlayer = this.turnManager.getCurrentPlayer()
     const activeWorm = this.worms.get(currentPlayer.id)
-
-    if (!activeWorm) {
-      return
-    }
+    if (!activeWorm) return
 
     const position = activeWorm.getPositionPixels()
     const angle = this.weaponController.getAimAngleRad()
     const length = 50 + this.weaponController.getPower() * 4
-
     const endX = position.x + Math.cos(angle) * length
     const endY = position.y + Math.sin(angle) * length
 
@@ -1604,27 +1608,60 @@ export class GameScene extends Phaser.Scene {
     this.aimLine.moveTo(position.x, position.y)
     this.aimLine.lineTo(endX, endY)
     this.aimLine.strokePath()
+
+    // Broadcast aim to remote players (throttled to ~10fps)
+    if (this.isMultiplayer && colyseusService.isConnected() &&
+        currentPlayer.id === this.localPlayerId &&
+        this.time.now - this.lastAimBroadcast > 100) {
+      this.lastAimBroadcast = this.time.now
+      colyseusService.sendPlayerAction('aim', {
+        x: position.x, y: position.y,
+        angle, length,
+        playerId: this.localPlayerId
+      })
+    }
+  }
+
+  private drawRemoteAimLine(data: any): void {
+    let line = this.remoteAimLines.get(data.playerId)
+    if (!line) {
+      line = this.add.graphics()
+      line.setDepth(50)
+      this.remoteAimLines.set(data.playerId, line)
+    }
+    line.clear()
+    if (!this.currentProjectile) {
+      const endX = data.x + Math.cos(data.angle) * data.length
+      const endY = data.y + Math.sin(data.angle) * data.length
+      line.lineStyle(2, 0xff8844, 0.7)
+      line.beginPath()
+      line.moveTo(data.x, data.y)
+      line.lineTo(endX, endY)
+      line.strokePath()
+    }
   }
 
   private updateWormHealthTexts(): void {
     this.wormHealthTexts.forEach((healthText, playerId) => {
       const worm = this.worms.get(playerId)
+      const nameText = this.wormNameTexts.get(playerId)
       if (worm && worm.isAlive()) {
         const position = worm.getPositionPixels()
         healthText.setPosition(position.x, position.y - 50)
         healthText.setText(worm.getHealth().toString())
-        
-        // Cambiar color según la salud
+        if (nameText) nameText.setPosition(position.x, position.y - 68)
+
         const health = worm.getHealth()
         if (health > 70) {
-          healthText.setColor('#4ade80') // Verde
+          healthText.setColor('#4ade80')
         } else if (health > 30) {
-          healthText.setColor('#fbbf24') // Amarillo
+          healthText.setColor('#fbbf24')
         } else {
-          healthText.setColor('#ef4444') // Rojo
+          healthText.setColor('#ef4444')
         }
       } else {
         healthText.setVisible(false)
+        nameText?.setVisible(false)
       }
     })
   }
@@ -1692,6 +1729,9 @@ export class GameScene extends Phaser.Scene {
         break
       case 'terrain_destroy':
         this.handleRemoteTerrainDestroy(data)
+        break
+      case 'aim':
+        this.drawRemoteAimLine(data)
         break
     }
   }
@@ -1803,11 +1843,13 @@ export class GameScene extends Phaser.Scene {
     this.hudManager.destroy()
     this.weaponMenuManager.destroy()
     
-    // Limpiar textos de HP
-    this.wormHealthTexts.forEach((text) => {
-      text.destroy()
-    })
+    // Limpiar textos de HP y nombres
+    this.wormHealthTexts.forEach((text) => { text.destroy() })
     this.wormHealthTexts.clear()
+    this.wormNameTexts.forEach((text) => { text.destroy() })
+    this.wormNameTexts.clear()
+    this.remoteAimLines.forEach((g) => g.destroy())
+    this.remoteAimLines.clear()
     
     planckWorldManager.destroyWorld()
   }

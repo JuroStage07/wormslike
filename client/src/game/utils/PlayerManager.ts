@@ -20,9 +20,21 @@ export class PlayerManager {
   private players: Map<string, PlayerData> = new Map()
   private localPlayerId: string = ''
   private hostPlayerId: string = ''
+  private localPlayerName: string = ''
 
   constructor() {
     this.generateLocalPlayerId()
+  }
+
+  public getLocalPlayerName(): string {
+    return this.localPlayerName || this.generatePlayerName()
+  }
+
+  public setLocalPlayerName(name: string): void {
+    this.localPlayerName = name.trim() || this.generatePlayerName()
+    // Update the local player entry if it exists
+    const local = this.players.get(this.localPlayerId)
+    if (local) local.name = this.localPlayerName
   }
 
   private generateLocalPlayerId(): string {

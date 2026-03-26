@@ -71,7 +71,7 @@ export class LobbyScene extends Phaser.Scene {
     try {
       // Intentar crear sala real
       const room = await colyseusService.createPrivateRoom({
-        playerName: this.playerManager.generatePlayerName()
+        playerName: this.playerManager.getLocalPlayerName()
       })
       
       this.roomCode = room.roomId
@@ -129,7 +129,7 @@ export class LobbyScene extends Phaser.Scene {
     
     try {
       // Intentar unirse a sala real
-      await colyseusService.joinPrivateRoom(roomCode, this.playerManager.generatePlayerName())
+      await colyseusService.joinPrivateRoom(roomCode, this.playerManager.getLocalPlayerName())
       this.roomCode = roomCode
       this.isHost = false
       
@@ -295,6 +295,9 @@ export class LobbyScene extends Phaser.Scene {
       }
     ).setOrigin(0.5)
 
+    // Name input
+    this.createNameInput()
+
     // Código de sala mejorado con botón de copiar
     if (this.mode !== 'quick') {
       this.createRoomCodeSection()
@@ -304,6 +307,33 @@ export class LobbyScene extends Phaser.Scene {
     this.createChatPanel()
     this.createMapSelector()
     this.createButtons()
+  }
+
+  private createNameInput(): void {
+    const cx = this.scale.width / 2
+    const y = 130
+
+    this.add.text(cx - 160, y, '👤 Tu nombre:', {
+      fontFamily: 'Arial Bold', fontSize: '15px', color: '#cccccc'
+    }).setOrigin(0, 0.5)
+
+    const inputEl = document.createElement('input')
+    inputEl.type = 'text'
+    inputEl.maxLength = 16
+    inputEl.placeholder = this.playerManager.generatePlayerName()
+    inputEl.value = this.playerManager.getLocalPlayerName()
+    inputEl.style.cssText = `
+      width: 180px; height: 32px; font-size: 15px; padding: 4px 10px;
+      border: 2px solid #4a90e2; border-radius: 8px;
+      background: #1a2a3a; color: #ffffff; outline: none;
+    `
+    inputEl.addEventListener('input', () => {
+      this.playerManager.setLocalPlayerName(inputEl.value)
+    })
+    inputEl.addEventListener('focus', () => { inputEl.style.borderColor = '#7ab0f2' })
+    inputEl.addEventListener('blur', () => { inputEl.style.borderColor = '#4a90e2' })
+
+    this.add.dom(cx + 30, y, inputEl)
   }
 
   private createRoomCodeSection(): void {
@@ -735,7 +765,7 @@ export class LobbyScene extends Phaser.Scene {
     // Añadir jugador local
     const localPlayer: PlayerData = {
       id: this.playerManager.getLocalPlayerId(),
-      name: this.playerManager.generatePlayerName(),
+      name: this.playerManager.getLocalPlayerName(),
       isReady: false,
       isHost: this.mode === 'create',
       isConnected: true,
